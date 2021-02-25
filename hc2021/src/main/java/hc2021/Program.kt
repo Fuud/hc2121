@@ -5,11 +5,15 @@ import java.util.*
 
 fun main() {
     val scanner = Scanner(Street::class.java.classLoader.getResourceAsStream("a.txt"))
-
+    // duration
     val D = scanner.nextInt()
+    // intersection number
     val I = scanner.nextInt()
+    // street number
     val S = scanner.nextInt()
+    // number of cars
     val V = scanner.nextInt()
+    // bonus point for car
     val F = scanner.nextInt()
 
     val streets = (0 until S).map {
