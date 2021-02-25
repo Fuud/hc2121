@@ -21,9 +21,12 @@ fun main() {
     val streets = (0 until S).map {
         Street(
             id = it,
+            // begin
             B = scanner.nextInt(),
+            // end
             E = scanner.nextInt(),
             name = scanner.next(),
+            // length
             L = scanner.nextInt()
         )
     }
@@ -38,6 +41,7 @@ fun main() {
             nameToId[scanner.next()]!!
         }
     }
+
 
     File("$input.out").bufferedWriter().use { writer ->
         writer.append()
