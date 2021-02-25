@@ -1,10 +1,12 @@
 package hc2021
 
+import java.io.File
 import java.util.*
 
 
 fun main() {
-    val scanner = Scanner(Street::class.java.classLoader.getResourceAsStream("a.txt"))
+    val input = "a"
+    val scanner = Scanner(Street::class.java.classLoader.getResourceAsStream("$input.txt"))
     // duration
     val D = scanner.nextInt()
     // intersection number
@@ -37,7 +39,10 @@ fun main() {
         }
     }
 
-    println()
+    File("$input.out").bufferedWriter().use { writer ->
+        writer.append()
+        writer.newLine()
+    }
 }
 
 data class Street(val id: Int, val B: Int, val E: Int, val name: String, val L: Int)
