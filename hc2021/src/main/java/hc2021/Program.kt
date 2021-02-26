@@ -89,7 +89,6 @@ fun main() {
 
         var score = 0
 
-        val cat2listQueue = mutableMapOf<Street, MutableList<Car>>()
         for (tick in 0 .. D) {
             val carsPerStreet = mutableMapOf<Street, MutableList<Car>>()
             cars
