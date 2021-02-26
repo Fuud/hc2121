@@ -7,6 +7,7 @@ import java.util.*
 
 
 fun main() {
+    val currentTimeMillis = System.currentTimeMillis()
     for (input in listOf("a", "b", "c", "d", "e", "f")) {
         val scanner = Scanner(Street::class.java.classLoader.getResourceAsStream("$input.txt"))
         // duration
@@ -88,6 +89,7 @@ fun main() {
 
         var score = 0
 
+        val cat2listQueue = mutableMapOf<Street, MutableList<Car>>()
         for (tick in 0 .. D) {
             val carsPerStreet = mutableMapOf<Street, MutableList<Car>>()
             cars
@@ -100,8 +102,9 @@ fun main() {
             }
 
             cars.filter { it.atTheEnd }.forEach { car ->
-                score += F + (D - tick)
+                score += F + (D - tick + 1)
                 cars.removeIf { it.id == car.id }
+                carsPerStreet.getOrDefault(car.street, mutableListOf()).removeIf { it.id == car.id }
             }
 
             val greenStreets = streets
@@ -117,7 +120,8 @@ fun main() {
         }
 
 
-
+    System.out.println(score)
+    System.out.println("time " + (System.currentTimeMillis() - currentTimeMillis))
 
     File("$input.$score.txt").printWriter().use { writer ->
 
