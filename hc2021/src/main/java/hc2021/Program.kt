@@ -153,11 +153,12 @@ class Cars(paths: List<List<Int>>, val schedules: Map<Int, Schedule>, val street
 
         junctions.forEach { (_, street2Cars) ->
             street2Cars.forEach { (_, cars) ->
-                val car = cars.firstOrNull()
-                if (car?.atTheEnd == true) {
-                    score += F + (D - turn - 1)
+                cars.removeIf{
+                    if(it.atTheEnd) {
+                        score += F + (D - turn - 1)
 //                    println("Score $car $score")
-                    cars.removeFirst()
+                    }
+                    it.atTheEnd
                 }
             }
         }
