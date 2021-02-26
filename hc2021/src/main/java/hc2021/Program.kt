@@ -60,14 +60,14 @@ fun main() {
 
         File("$input.${cars.score}.txt").printWriter().use { writer ->
 
-            writer.println(I)
+            writer.println(schedule.size)
 
-            (0 until I).forEach {
-                writer.println(it)
-                val streets = cross[it]!!
-                writer.println(streets.size)
-                streets.forEach {
-                    writer.println("${it.name} 1")
+            schedule.forEach { (crossId, it) ->
+                writer.println(crossId)
+                val lights = it.lights
+                writer.println(lights.size)
+                lights.forEach {
+                    writer.println("${it.street.name} ${it.time}")
                 }
             }
         }
