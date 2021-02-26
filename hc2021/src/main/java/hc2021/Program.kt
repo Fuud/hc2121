@@ -1,8 +1,6 @@
 package hc2021
 
-import java.io.BufferedWriter
 import java.io.File
-import java.lang.IllegalStateException
 import java.util.*
 
 
@@ -23,14 +21,14 @@ fun main() {
 
         val streets = (0 until S).map {
             Street(
-                id = it,
-                // begin
-                B = scanner.nextInt(),
-                // end
-                E = scanner.nextInt(),
-                name = scanner.next(),
-                // length
-                L = scanner.nextInt()
+                    id = it,
+                    // begin
+                    from = scanner.nextInt(),
+                    // end
+                    to = scanner.nextInt(),
+                    name = scanner.next(),
+                    // length
+                    L = scanner.nextInt()
             )
         }
 
@@ -38,114 +36,131 @@ fun main() {
 
         val nameToId = streets.associateBy(keySelector = { it.name }, valueTransform = { it.id })
 
-        val paths = (0 until V).map {
+        val paths: List<List<Int>> = (0 until V).map {
             val P = scanner.nextInt()
             (0 until P).map {
                 nameToId[scanner.next()]!!
             }
         }
+        println("$input ${paths.size} cars")
 
+        val cross = streets.groupBy { it.to }
 
-//    val bestPath = paths.minBy {
-//        it.size - 1 + it.map{idToStreet[it]!!.L}
-//    }
-
-        val cross = streets.groupBy { it.E }
-
-        val schedule = cross.mapValues { (crossId, streets) ->
-            streets.map { StreetAndTime(it, 1) }
+        val schedule: Map<Int, Schedule> = cross.mapValues { (_, streets) ->
+            Schedule(streets.map { StreetAndTime(it, 1) })
         }
 
-        fun greenStreet(tick: Int, cross: Int): Street {
-            val times = schedule[cross]!!
-            val sumTimes = times.sumBy { it.time }
-            val reminder = tick % sumTimes
-            var timeCount = 0
-            for (strTime in times) {
-                timeCount += strTime.time
-                if (timeCount > reminder) {
-                    return strTime.street
+        val cars = Cars(paths, schedule, idToStreet, F, D)
+        for (tick in 0 until D) {
+            cars.tick(tick)
+        }
+
+        println(cars.score)
+        println("time " + (System.currentTimeMillis() - currentTimeMillis))
+
+        File("$input.${cars.score}.txt").printWriter().use { writer ->
+
+            writer.println(I)
+
+            (0 until I).forEach {
+                writer.println(it)
+                val streets = cross[it]!!
+                writer.println(streets.size)
+                streets.forEach {
+                    writer.println("${it.name} 1")
                 }
-            }
-            throw IllegalStateException("Should not reach here")
-        }
-
-        fun isGreen(tick: Int, street: Street): Boolean {
-            return greenStreet(tick, street.E) == street
-        }
-
-        data class Car(val id: Int, val path: List<Street>, var streetIdx: Int, var x: Int) {
-            val street: Street
-                get() = path[streetIdx]
-
-            val atTheEnd: Boolean
-                get() = (streetIdx == path.lastIndex) && x == 0
-        }
-
-        val cars = paths.mapIndexed { id, path ->
-            val street = idToStreet[path.first()]!!
-            Car(id, path.map { idToStreet[it]!! }, 0, 0)
-        }.toMutableList()
-
-        var score = 0
-
-        for (tick in 0 .. D) {
-            val carsPerStreet = mutableMapOf<Street, MutableList<Car>>()
-            cars
-                .forEach { car ->
-                if (car.x > 0) {
-                    car.x--
-                } else {
-                    carsPerStreet.computeIfAbsent(car.street) { mutableListOf<Car>() }.add(car)
-                }
-            }
-
-            cars.filter { it.atTheEnd }.forEach { car ->
-                score += F + (D - tick + 1)
-                cars.removeIf { it.id == car.id }
-                carsPerStreet.getOrDefault(car.street, mutableListOf()).removeIf { it.id == car.id }
-            }
-
-            val greenStreets = streets
-                .filter { isGreen(tick, it) }
-            greenStreets
-                .mapNotNull { carsPerStreet[it]?.first() }
-                .forEach {
-                    it.streetIdx++
-                    it.x = it.street.L
-                }
-
-
-        }
-
-
-    System.out.println(score)
-    System.out.println("time " + (System.currentTimeMillis() - currentTimeMillis))
-
-    File("$input.$score.txt").printWriter().use { writer ->
-
-        writer.println(I)
-
-        (0 until I).forEach {
-            writer.println(it)
-            val streets = cross[it]!!
-            writer.println(streets.size)
-            streets.forEach {
-                writer.println("${it.name} 1")
             }
         }
     }
 }
 
 
-}
-
-fun BufferedWriter.writeLn(s: Any) {
-    this.write(s.toString())
-    this.newLine()
-}
-
-data class Street(val id: Int, val B: Int, val E: Int, val name: String, val L: Int)
+data class Street(val id: Int, val from: Int, val to: Int, val name: String, val L: Int)
 
 data class StreetAndTime(val street: Street, val time: Int)
+
+data class Schedule(val lights: List<StreetAndTime>) {
+    val period = lights.sumBy { it.time }
+
+    fun greenStreet(tick: Int): Street {
+        val reminder = tick % period
+        var timeCount = 0
+        for (strTime in lights) {
+            timeCount += strTime.time
+            if (timeCount > reminder) {
+                return strTime.street
+            }
+        }
+        throw IllegalStateException("Should not reach here")
+    }
+
+    fun isGreen(tick: Int, street: Street): Boolean {
+        return greenStreet(tick) == street
+    }
+}
+
+data class Car(val id: Int, val path: List<Street>, var streetIdx: Int, var x: Int) {
+    val street: Street
+        get() = path[streetIdx]
+
+    val atTheEnd: Boolean
+        get() = (streetIdx == path.lastIndex) && x == 0
+}
+
+class Cars(paths: List<List<Int>>, val schedules: Map<Int, Schedule>, val streets: Map<Int, Street>, val F: Int, val D: Int) {
+    var score: Int = 0
+    val junctions: MutableMap<Int, MutableMap<Int, MutableList<Car>>> = paths.mapIndexed { id, path ->
+        Car(id, path.map { streets[it]!! }, 0, 0)
+    }.groupBy {
+        it.street.to
+    }.mapValuesTo(mutableMapOf()) { entry ->
+        entry.value.groupByTo(mutableMapOf()) { it.street.id }
+    }
+
+    fun tick(turn: Int) {
+//        println("==============$turn")
+        val greenStreets = schedules.mapValues { it.value.greenStreet(turn) }
+//        println(greenStreets)
+        val greenCars: Map<Int, Car?> = greenStreets.mapValues {
+            val queue = junctions[it.key]?.get(it.value.id)
+            val car = queue?.firstOrNull()
+            if (car?.x == 0) {
+                queue.removeFirst()
+                car.streetIdx++
+                car.x = car.street.L - 1
+//                println("promote $car")
+                return@mapValues car
+            }
+            return@mapValues null
+        }
+
+        junctions.forEach { (_, street2Cars) ->
+            street2Cars.forEach { (_, cars) ->
+                cars.forEach {
+                    if (it.x > 0) {
+                        it.x--
+//                        println("move $it")
+                    }
+                }
+            }
+        }
+
+        greenCars.forEach { (_, car) ->
+            if (car != null) {
+                junctions.computeIfAbsent(car.street.to) { mutableMapOf() }.computeIfAbsent(car.street.id) { mutableListOf() }.add(car)
+            }
+        }
+
+        junctions.forEach { (_, street2Cars) ->
+            street2Cars.forEach { (_, cars) ->
+                val car = cars.firstOrNull()
+                if (car?.atTheEnd == true) {
+                    score += F + (D - turn - 1)
+//                    println("Score $car $score")
+                    cars.removeFirst()
+                }
+            }
+        }
+    }
+}
 
