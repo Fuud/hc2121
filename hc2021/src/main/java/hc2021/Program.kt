@@ -1,6 +1,7 @@
 package hc2021
 
 import java.io.File
+import java.io.PrintWriter
 import java.util.*
 import kotlin.math.max
 import kotlin.math.min
@@ -26,6 +27,23 @@ data class Data(val D: Int, val F: Int, val streets: List<Street>, val paths: Li
     }.toMap()
     val cross: Map<Int, List<Street>> = streets.groupBy { it.to }
     val maxScore = lengths.map { F + D - it.value }.sum()
+    val streetWeight: MutableMap<Int, Int> = mutableMapOf()
+    val streetCount: MutableMap<Int, Int> = mutableMapOf()
+    val onDemandCrosses: Map<Int, List<Street>>
+
+    init {
+        paths.forEachIndexed { i, it ->
+            val bonus = (D - lengths[i]!! + F)
+            it.forEach { id ->
+                streetWeight.compute(id) { _, old -> if (old == null) bonus else old + bonus }
+                streetCount.compute(id) { _, old -> if (old == null) 1 else old + 1 }
+            }
+        }
+        this.onDemandCrosses = cross.filter { (_, streets) ->
+            streets.filter { streetCount.containsKey(it.id) }
+                    .all { (streetCount[it.id]!!) == 1 }
+        }
+    }
 }
 
 fun main() {
@@ -36,84 +54,22 @@ fun main() {
         for (entry in tasks) {
             val start = System.currentTimeMillis()
             val data = entry.value
-            val lengths = data.lengths
-
-            val streetWeight: MutableMap<Int, Int> = mutableMapOf()
-            val streetCount: MutableMap<Int, Int> = mutableMapOf()
-            data.paths.forEachIndexed { i, it ->
-                val bonus = (data.D - lengths[i]!! + data.F)
-                it.forEach { id ->
-                    streetWeight.compute(id) { _, old -> if (old == null) bonus else old + bonus }
-                    streetCount.compute(id) { _, old -> if (old == null) 1 else old + 1 }
-                }
-            }
 
             val period = random.nextInt(4) + 4
-            val schedule: Map<Int, Schedule> = data.cross.mapValues { (_, streets) ->
-                val sum = streets.map { streetWeight.getOrDefault(it.id, 0) }.sum()
-                val list = mutableListOf<StreetAndTime>()
-                val localPeriod = min(sum / (data.F + data.D), period)
-                val vw: Map<Street, Double> = streets.filter { streetWeight.containsKey(it.id) }
-                        .map { it to streetWeight[it.id]!! / sum.toDouble() }
-                        .toMap()
-                if (vw.size == 2) {
-                    val iterator = vw.iterator()
-                    val first = iterator.next()!!
-                    val last = iterator.next()!!
-                    if (first.value > 0.42 && first.value < 0.58) {
-                        list.add(StreetAndTime(first.key, 1))
-                        list.add(StreetAndTime(last.key, 1))
-                    } else if (first.value > 0.29 && first.value < 0.71) {
-                        if (first.value > last.value) {
-                            list.add(StreetAndTime(first.key, 2))
-                            list.add(StreetAndTime(last.key, 1))
-                        } else {
-                            list.add(StreetAndTime(first.key, 1))
-                            list.add(StreetAndTime(last.key, 2))
-                        }
-                    } else if (first.value > 0.20 && first.value < 0.80) {
-                        if (first.value > last.value) {
-                            list.add(StreetAndTime(first.key, 3))
-                            list.add(StreetAndTime(last.key, 1))
-                        } else {
-                            list.add(StreetAndTime(first.key, 1))
-                            list.add(StreetAndTime(last.key, 3))
-                        }
-                    } else {
-                        for (street in streets) {
-                            val frequency = streetWeight[street.id] ?: 0
-                            if (frequency > 0 && vw[street]!! > 0.001) {
-                                val time = frequency * localPeriod / sum
-                                list.add(StreetAndTime(street, if (time > 0) time else 1))
-                            }
-                        }
-                    }
-                } else {
-                    for (street in streets) {
-                        val frequency = streetWeight[street.id] ?: 0
-                        if (frequency > 0 && vw[street]!! > 0.001) {
-                            val time = frequency * localPeriod / sum
-                            list.add(StreetAndTime(street, if (time > 0) time else 1))
-                        }
-                    }
+            val schedule: Map<Int, Schedule> = data.cross.mapValues { (cross, streets) ->
+                if (data.onDemandCrosses.containsKey(cross)) {
+                    return@mapValues ScheduleOnDemand(streets.first(), data)
                 }
-                Schedule(list.shuffled(random))
+                return@mapValues createSchedule(streets, data, period, random)
             }.filter { it.value.isNotEmpty() }
 
             val task = entry.key
-
-//            val onDemandCrosses = data.cross.filter { (_, streets) ->
-//                streets.filter { streetCount.containsKey(it.id) }
-//                        .all { (streetCount[it.id]!!) == 1 }
-//            }
-//            println("${task.fileName} ${onDemandCrosses.size} from ${schedule.size}")
-
-            val cars = Cars(data.paths, schedule, data.idToStreet, data.F, data.D)
+            val cars = Cars(data, schedule)
             for (tick in 0 until data.D) {
                 cars.tick(tick)
             }
 
-            println("$task - $period - ${cars.score}(${cars.score / data.maxScore.toDouble() * 100}%) ${(System.currentTimeMillis() - start)/1000}s")
+            println("$task - $period - ${cars.score}(${cars.score / data.maxScore.toDouble() * 100}%) ${(System.currentTimeMillis() - start) / 1000}s")
             if (scores[task] ?: 0 < cars.score) {
                 File("${task.fileName}.${cars.score}.txt").printWriter().use { writer ->
 
@@ -121,17 +77,67 @@ fun main() {
 
                     schedule.forEach { (crossId, it) ->
                         writer.println(crossId)
-                        val lights = it.lights
-                        writer.println(lights.size)
-                        lights.forEach {
-                            writer.println("${it.street.name} ${it.time}")
-                        }
+                        it.write(writer)
                     }
                 }
                 scores[task] = cars.score
             }
         }
     }
+}
+
+private fun createSchedule(streets: List<Street>,
+                           data: Data,
+                           period: Int,
+                           random: Random): ScheduleImpl {
+    val sum = streets.map { data.streetWeight.getOrDefault(it.id, 0) }.sum()
+    val list = mutableListOf<StreetAndTime>()
+    val localPeriod = min(sum / (data.F + data.D), period)
+    val vw: Map<Street, Double> = streets.filter { data.streetWeight.containsKey(it.id) }
+            .map { it to data.streetWeight[it.id]!! / sum.toDouble() }
+            .toMap()
+    if (vw.size == 2) {
+        val iterator = vw.iterator()
+        val first = iterator.next()!!
+        val last = iterator.next()!!
+        if (first.value > 0.42 && first.value < 0.58) {
+            list.add(StreetAndTime(first.key, 1))
+            list.add(StreetAndTime(last.key, 1))
+        } else if (first.value > 0.29 && first.value < 0.71) {
+            if (first.value > last.value) {
+                list.add(StreetAndTime(first.key, 2))
+                list.add(StreetAndTime(last.key, 1))
+            } else {
+                list.add(StreetAndTime(first.key, 1))
+                list.add(StreetAndTime(last.key, 2))
+            }
+        } else if (first.value > 0.20 && first.value < 0.80) {
+            if (first.value > last.value) {
+                list.add(StreetAndTime(first.key, 3))
+                list.add(StreetAndTime(last.key, 1))
+            } else {
+                list.add(StreetAndTime(first.key, 1))
+                list.add(StreetAndTime(last.key, 3))
+            }
+        } else {
+            for (street in streets) {
+                val frequency = data.streetWeight[street.id] ?: 0
+                if (frequency > 0 && vw[street]!! > 0.001) {
+                    val time = frequency * localPeriod / sum
+                    list.add(StreetAndTime(street, if (time > 0) time else 1))
+                }
+            }
+        }
+    } else {
+        for (street in streets) {
+            val frequency = data.streetWeight[street.id] ?: 0
+            if (frequency > 0 && vw[street]!! > 0.001) {
+                val time = frequency * localPeriod / sum
+                list.add(StreetAndTime(street, if (time > 0) time else 1))
+            }
+        }
+    }
+    return ScheduleImpl(list.shuffled(random))
 }
 
 private fun readData(): Map<Task, Data> {
@@ -179,7 +185,7 @@ private fun readData(): Map<Task, Data> {
 
 private fun dumblink(cross: Map<Int, List<Street>>) =
         cross.mapValues { (_, streets) ->
-            Schedule(streets.map { StreetAndTime(it, 1) })
+            ScheduleImpl(streets.map { StreetAndTime(it, 1) })
         }
 
 
@@ -187,7 +193,44 @@ data class Street(val id: Int, val from: Int, val to: Int, val name: String, val
 
 data class StreetAndTime(val street: Street, val time: Int)
 
-data class Schedule(val lights: List<StreetAndTime>) {
+interface Schedule {
+    fun getGreenCar(cars: List<Car>, tick: Int): Car?
+    fun isNotEmpty(): Boolean
+    fun write(writer: PrintWriter)
+}
+
+class ScheduleOnDemand(val defaultStreet: Street, val data: Data) : Schedule {
+    val lights: MutableMap<Int, Street> = TreeMap()
+
+    override fun getGreenCar(cars: List<Car>, tick: Int): Car? {
+        if (lights.containsKey(tick)) {
+            return cars.find { it.street == lights[tick] }
+        }
+        val car = cars.maxByOrNull { data.streetWeight[it.street.id]!! }
+        if (car != null) {
+            lights[tick] = car.street
+        }
+        return car
+    }
+
+    override fun isNotEmpty(): Boolean = true
+
+    override fun write(writer: PrintWriter) {
+        if (lights.isEmpty()) {
+            writer.println("1")
+            writer.println("${defaultStreet.name} 1")
+        } else {
+            writer.println(lights.size)
+            var turn = 0
+            for ((tick, street) in lights) {
+                writer.println("${street.name} ${tick - turn + 1}")
+                turn = tick
+            }
+        }
+    }
+}
+
+data class ScheduleImpl(val lights: List<StreetAndTime>) : Schedule {
     val period = lights.sumBy { it.time }
 
     fun greenStreet(tick: Int): Street {
@@ -202,7 +245,19 @@ data class Schedule(val lights: List<StreetAndTime>) {
         throw IllegalStateException("Should not reach here")
     }
 
-    fun isNotEmpty() = lights.isNotEmpty()
+    override fun getGreenCar(cars: List<Car>, tick: Int): Car? {
+        val greenStreet = greenStreet(tick)
+        return cars.find { it.street == greenStreet }
+    }
+
+    override fun isNotEmpty() = lights.isNotEmpty()
+
+    override fun write(writer: PrintWriter) {
+        writer.println(lights.size)
+        lights.forEach {
+            writer.println("${it.street.name} ${it.time}")
+        }
+    }
 }
 
 data class Car(val id: Int, val path: List<Street>) {
@@ -216,44 +271,45 @@ data class Car(val id: Int, val path: List<Street>) {
     fun x(now: Int): Int = max(street.L - (now - t ), 0)
 }
 
-class Cars(paths: List<List<Int>>, val schedules: Map<Int, Schedule>, val streets: Map<Int, Street>, val F: Int, val D: Int) {
+class Cars(val data: Data, val schedules: Map<Int, Schedule>) {
     var score: Int = 0
-    val junctions: MutableMap<Int, MutableList<Car>> = paths.mapIndexed { id, path ->
-        Car(id, path.map { streets[it]!! })
+    val junctions: MutableMap<Int, MutableList<Car>> = data.paths.mapIndexed { id, path ->
+        Car(id, path.map { data.idToStreet[it]!! })
     }.groupByTo(mutableMapOf()) {
         it.street.id
     }
 
     fun tick(turn: Int) {
-        val greenCars: List<Car> = junctions.filter { (id, cars) ->
-            if(cars.isEmpty()) {
-                return@filter false
+        val greenCars = junctions.mapNotNull { (_, cars) ->
+            val car = cars.firstOrNull()
+            if (car != null && car.x(turn) == 0) {
+                return@mapNotNull car
             }
-            val car = cars.first()
-            val onTheLight = car.x(turn) == 0
-            if (onTheLight) {
-                val street = streets[id]!!
-                return@filter schedules[street.to]!!.greenStreet(turn) == street
+            null
+        }.groupBy {
+            it.street.to
+        }.mapNotNull{ (cross, cars) ->
+            val car = schedules[cross]?.getGreenCar(cars, turn)
+            if (car != null) {
+                junctions[car.street.id]!!.removeFirst()
+                car.streetIdx++
+                car.t = turn
             }
-            return@filter false
-        }.map {
-            val car = it.value.removeFirst()
-            car.streetIdx++
-            car.t = turn
             car
         }
+
 
         greenCars.forEach { car ->
             junctions.computeIfAbsent(car.street.id) { mutableListOf() }.add(car)
         }
 
         junctions.forEach { (_, cars) ->
-                cars.removeIf{
-                    val atTheEnd = it.atTheEnd(turn)
-                    if(atTheEnd) {
-                        score += F + (D - turn - 1)
-                    }
-                    atTheEnd
+            cars.removeIf {
+                val atTheEnd = it.atTheEnd(turn)
+                if (atTheEnd) {
+                    score += data.F + (data.D - turn - 1)
+                }
+                atTheEnd
             }
         }
     }
