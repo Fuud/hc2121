@@ -7,12 +7,18 @@ import kotlin.math.max
 import kotlin.math.min
 
 
-enum class Task(val fileName: String) {
-    A("a"), B("b"), C("c"), D("d"), E("e"), F("f");
+enum class Task(val fileName: String, val period: Int) {
+    A("a",2), B("b",3), C("c",4), D("d",2), E("e",12), F("f",10);
 
     companion object {
         fun toProcess(): List<Task> {
-            return listOf(B, C, D, E, F)
+            return listOf(
+                            B,
+                            C,
+                            D,
+                            E,
+                            F,
+            )
         }
     }
 }
@@ -50,12 +56,14 @@ fun main() {
     val tasks = readData()
     val random = Random()
     val scores: MutableMap<Task, Int> = mutableMapOf()
+    var count = 0
     while (true) {
         for (entry in tasks) {
             val start = System.currentTimeMillis()
             val data = entry.value
 
-            val period = random.nextInt(4) + 4
+            val task = entry.key
+            val period = random.nextInt(3) - 1 + task.period
             val schedule: Map<Int, Schedule> = data.cross.mapValues { (cross, streets) ->
                 if (data.onDemandCrosses.containsKey(cross)) {
                     return@mapValues ScheduleOnDemand(streets.first(), data)
@@ -63,7 +71,6 @@ fun main() {
                 return@mapValues createSchedule(streets, data, period, random)
             }.filter { it.value.isNotEmpty() }
 
-            val task = entry.key
             val cars = Cars(data, schedule)
             for (tick in 0 until data.D) {
                 cars.tick(tick)
@@ -83,6 +90,7 @@ fun main() {
                 scores[task] = cars.score
             }
         }
+        count++
     }
 }
 
