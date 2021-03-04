@@ -23,12 +23,12 @@ enum class Task(val fileName: String, val period: Int) {
 
         fun toRecord(task: Task): Int {
             return when (task) {
-                A -> 2002;
-                B -> 4567278
-                C -> 1301742
-                D -> 1610074
-                E -> 705944
-                F -> 1392436
+                A -> 2002
+                B -> 4_567_379
+                C -> 1_302_145
+                D -> 1_617_359
+                E -> 717_618
+                F -> 1_393_048
             }
         }
     }
@@ -121,9 +121,10 @@ fun main() {
                 }
                 scores[task] = cars.score
             } else {
-                val diff = ((scores[task] ?: 0) - cars.score)
-                println("$task - $period - ${cars.score}(${cars.score / data.maxScore.toDouble() * 100}%) ${(System.currentTimeMillis() - start) / 1000}s, " +
-                        " count = $count new = $newRecords diff = $diff")
+                val diffStr = String.format("%,d", ((scores[task] ?: 0) - cars.score))
+                val carsScoreStr = String.format("%,d", cars.score)
+                println("$task - $period - ${carsScoreStr} (${cars.score / data.maxScore.toDouble() * 100}%) ${(System.currentTimeMillis() - start) / 1000}s, " +
+                        " count = $count new = $newRecords diff = $diffStr")
             }
         }
         count++
