@@ -167,13 +167,30 @@ private fun createSchedule(streets: List<Street>,
         if (set != null) {
             return ScheduleImpl(shuffled.sortedWith { k1, k2 ->
                 if (set.contains(k1.street.id) && set.contains(k2.street.id)) {
-                    0
+                    val k1Weight: Int = data.streetWeight.get(k1.street.id)!!
+                    val k2Weight: Int = data.streetWeight.get(k2.street.id)!!
+
+                    if (k1Weight < k2Weight) {
+                        return@sortedWith -1
+                    } else if (k1Weight == k2Weight) {
+                        return@sortedWith 0
+                    } else {
+                        return@sortedWith 1
+                    }
                 } else if (set.contains(k1.street.id)) {
                     -1
                 } else if (set.contains(k2.street.id)) {
                     1
                 } else {
-                    0
+                    val k1Weight: Int = data.streetWeight.get(k1.street.id)!!
+                    val k2Weight: Int = data.streetWeight.get(k2.street.id)!!
+                    if (k1Weight < k2Weight) {
+                        return@sortedWith -1
+                    } else if (k1Weight == k2Weight) {
+                        return@sortedWith 0
+                    } else {
+                        return@sortedWith 1
+                    }
                 }
             })
         }
