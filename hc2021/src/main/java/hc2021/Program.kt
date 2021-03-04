@@ -20,6 +20,17 @@ enum class Task(val fileName: String, val period: Int) {
                     F,
             )
         }
+
+        fun toRecord(task: Task): Int {
+            return when (task) {
+                A -> 2002;
+                B -> 4567278
+                C -> 1301742
+                D -> 1610074
+                E -> 705944
+                F -> 1392436
+            }
+        }
     }
 }
 
@@ -47,6 +58,7 @@ data class Data(val D: Int, val F: Int, val streets: List<Street>, val paths: Li
     // все маршруты подходят к этим перекрёсткам с разных улиц. подмножество всех cross-ов.
     val onDemandCrosses: Map<Int, List<Street>>
 
+    // первые перекрёстки в маршрутах
     val firstCrosses: MutableMap<Int, MutableSet<Int>> = mutableMapOf()
 
     init {
@@ -71,12 +83,16 @@ fun main() {
     val tasks = readData()
     val random = Random()
     val scores: MutableMap<Task, Int> = mutableMapOf()
+    tasks.forEach { t, u -> scores[t] = Task.toRecord(t) }
+    println("scores = ${scores}")
+
     var count = 0
+    var newRecords = 0
+
     while (true) {
         for (entry in tasks) {
             val start = System.currentTimeMillis()
             val data = entry.value
-
             val task = entry.key
             val period = random.nextInt(3) - 1 + task.period
             val schedule: Map<Int, Schedule> = data.cross.mapValues { (cross, streets) ->
@@ -91,8 +107,9 @@ fun main() {
                 cars.tick(tick)
             }
 
-            println("$task - $period - ${cars.score}(${cars.score / data.maxScore.toDouble() * 100}%) ${(System.currentTimeMillis() - start) / 1000}s")
             if (scores[task] ?: 0 < cars.score) {
+                newRecords++
+                println(" + $task - $period - ${cars.score}(${cars.score / data.maxScore.toDouble() * 100}%) ${(System.currentTimeMillis() - start) / 1000}s")
                 File("${task.fileName}.${cars.score}.txt").printWriter().use { writer ->
 
                     writer.println(schedule.size)
@@ -103,6 +120,10 @@ fun main() {
                     }
                 }
                 scores[task] = cars.score
+            } else {
+                val diff = ((scores[task] ?: 0) - cars.score)
+                println("$task - $period - ${cars.score}(${cars.score / data.maxScore.toDouble() * 100}%) ${(System.currentTimeMillis() - start) / 1000}s, " +
+                        " count = $count new = $newRecords diff = $diff")
             }
         }
         count++
@@ -165,7 +186,7 @@ private fun createSchedule(streets: List<Street>,
         val cross = streets[0].to
         val set = data.firstCrosses[cross]
         if (set != null) {
-            return ScheduleImpl(shuffled.sortedWith { k1, k2 ->
+        return ScheduleImpl(shuffled.sortedWith { k1, k2 ->
                 if (set.contains(k1.street.id) && set.contains(k2.street.id)) {
                     val k1Weight: Int = data.streetWeight.get(k1.street.id)!!
                     val k2Weight: Int = data.streetWeight.get(k2.street.id)!!
@@ -177,11 +198,11 @@ private fun createSchedule(streets: List<Street>,
                     } else {
                         return@sortedWith 1
                     }
-                } else if (set.contains(k1.street.id)) {
-                    -1
-                } else if (set.contains(k2.street.id)) {
-                    1
-                } else {
+            } else if (set.contains(k1.street.id)) {
+                -1
+            } else if (set.contains(k2.street.id)) {
+                1
+            } else {
                     val k1Weight: Int = data.streetWeight.get(k1.street.id)!!
                     val k2Weight: Int = data.streetWeight.get(k2.street.id)!!
                     if (k1Weight < k2Weight) {
@@ -191,12 +212,33 @@ private fun createSchedule(streets: List<Street>,
                     } else {
                         return@sortedWith 1
                     }
-                }
-            })
+            }
+        })
         }
     }
 
     return ScheduleImpl(shuffled)
+}
+
+private fun compare(data: Data, k1: StreetAndTime, k2: StreetAndTime): Int {
+    val k1Weight: Int = data.streetWeight.get(k1.street.id)!!
+    val k2Weight: Int = data.streetWeight.get(k2.street.id)!!
+
+    if (k1Weight > k2Weight) {
+        return -1
+    } else if (k1Weight == k2Weight) {
+        val k1Count: Int = data.streetCount.get(k1.street.id)!!
+        val k2Count: Int = data.streetCount.get(k2.street.id)!!
+        if (k1Count > k2Count) {
+            return -1
+        } else if (k1Count == k2Count) {
+            return 0
+        } else {
+            return 1
+        }
+    } else {
+        return 1
+    }
 }
 
 private fun readData(): Map<Task, Data> {
