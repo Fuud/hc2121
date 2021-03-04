@@ -186,34 +186,17 @@ private fun createSchedule(streets: List<Street>,
         val cross = streets[0].to
         val set = data.firstCrosses[cross]
         if (set != null) {
-        return ScheduleImpl(shuffled.sortedWith { k1, k2 ->
+            return ScheduleImpl(shuffled.sortedWith { k1, k2 ->
                 if (set.contains(k1.street.id) && set.contains(k2.street.id)) {
-                    val k1Weight: Int = data.streetWeight.get(k1.street.id)!!
-                    val k2Weight: Int = data.streetWeight.get(k2.street.id)!!
-
-                    if (k1Weight < k2Weight) {
-                        return@sortedWith -1
-                    } else if (k1Weight == k2Weight) {
-                        return@sortedWith 0
-                    } else {
-                        return@sortedWith 1
-                    }
-            } else if (set.contains(k1.street.id)) {
-                -1
-            } else if (set.contains(k2.street.id)) {
-                1
-            } else {
-                    val k1Weight: Int = data.streetWeight.get(k1.street.id)!!
-                    val k2Weight: Int = data.streetWeight.get(k2.street.id)!!
-                    if (k1Weight < k2Weight) {
-                        return@sortedWith -1
-                    } else if (k1Weight == k2Weight) {
-                        return@sortedWith 0
-                    } else {
-                        return@sortedWith 1
-                    }
-            }
-        })
+                    compare(data, k1, k2)
+                } else if (set.contains(k1.street.id)) {
+                    -1
+                } else if (set.contains(k2.street.id)) {
+                    1
+                } else {
+                    compare(data, k1, k2)
+                }
+            })
         }
     }
 
@@ -227,15 +210,7 @@ private fun compare(data: Data, k1: StreetAndTime, k2: StreetAndTime): Int {
     if (k1Weight > k2Weight) {
         return -1
     } else if (k1Weight == k2Weight) {
-        val k1Count: Int = data.streetCount.get(k1.street.id)!!
-        val k2Count: Int = data.streetCount.get(k2.street.id)!!
-        if (k1Count > k2Count) {
-            return -1
-        } else if (k1Count == k2Count) {
-            return 0
-        } else {
-            return 1
-        }
+        return 0
     } else {
         return 1
     }
