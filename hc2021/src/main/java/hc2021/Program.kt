@@ -56,8 +56,8 @@ data class Data(val D: Int, val F: Int, val streets: List<Street>, val paths: Li
                 streetWeight.compute(id) { _, old -> if (old == null) bonus else old + bonus }
                 streetCount.compute(id) { _, old -> if (old == null) 1 else old + 1 }
             }
-            val firstStreetId = it.get(0)
-            val crossId = idToStreet.get(firstStreetId)!!.to
+            val firstStreetId = it[0]
+            val crossId = idToStreet[firstStreetId]!!.to
             firstCrosses.computeIfAbsent(crossId) { k -> mutableSetOf() }.add(firstStreetId)
         }
         this.onDemandCrosses = cross.filter { (_, streets) ->
@@ -69,10 +69,10 @@ data class Data(val D: Int, val F: Int, val streets: List<Street>, val paths: Li
 
 fun main() {
     val tasks = readData()
-    val random = Random(777)
+    val random = Random()
     val scores: MutableMap<Task, Int> = mutableMapOf()
     var count = 0
-    while (scores.isEmpty()) {
+    while (true) {
         for (entry in tasks) {
             val start = System.currentTimeMillis()
             val data = entry.value
@@ -161,9 +161,9 @@ private fun createSchedule(streets: List<Street>,
         }
     }
     val shuffled = list.shuffled(random)
-    if (!streets.isEmpty()) {
-        val cross = streets.get(0).to
-        val set = data.firstCrosses.get(cross)
+    if (list.isNotEmpty()) {
+        val cross = streets[0].to
+        val set = data.firstCrosses[cross]
         if (set != null) {
             return ScheduleImpl(shuffled.sortedWith { k1, k2 ->
                 if (set.contains(k1.street.id) && set.contains(k2.street.id)) {
