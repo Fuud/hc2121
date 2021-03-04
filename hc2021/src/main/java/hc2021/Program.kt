@@ -8,16 +8,16 @@ import kotlin.math.min
 
 
 enum class Task(val fileName: String, val period: Int) {
-    A("a",2), B("b",3), C("c",4), D("d",2), E("e",12), F("f",10);
+    A("a", 2), B("b", 3), C("c", 4), D("d", 2), E("e", 12), F("f", 10);
 
     companion object {
         fun toProcess(): List<Task> {
             return listOf(
-                            B,
-                            C,
-                            D,
-                            E,
-                            F,
+                    B,
+                    C,
+                    D,
+                    E,
+                    F,
             )
         }
     }
@@ -25,6 +25,8 @@ enum class Task(val fileName: String, val period: Int) {
 
 data class Data(val D: Int, val F: Int, val streets: List<Street>, val paths: List<List<Int>>) {
     val idToStreet = streets.associateBy { it.id }
+
+    // длины всех маршрутов
     val lengths = paths.mapIndexed { index, list ->
         index to list.stream()
                 .skip(1)
@@ -32,10 +34,20 @@ data class Data(val D: Int, val F: Int, val streets: List<Street>, val paths: Li
                 .sum()
     }.toMap()
     val cross: Map<Int, List<Street>> = streets.groupBy { it.to }
+
+    // все машины поехали, не встретили препятствий. обычно недосягаемое.
     val maxScore = lengths.map { F + D - it.value }.sum()
+
+    // берём всем маршруты с этой улицей и складываем их веса
     val streetWeight: MutableMap<Int, Int> = mutableMapOf()
+
+    // сколько маршрутов проходит через заданную улицу.
     val streetCount: MutableMap<Int, Int> = mutableMapOf()
+
+    // все маршруты подходят к этим перекрёсткам с разных улиц. подмножество всех cross-ов.
     val onDemandCrosses: Map<Int, List<Street>>
+
+    val firstCrosses: MutableMap<Int, MutableSet<Int>> = mutableMapOf()
 
     init {
         paths.forEachIndexed { i, it ->
@@ -44,6 +56,9 @@ data class Data(val D: Int, val F: Int, val streets: List<Street>, val paths: Li
                 streetWeight.compute(id) { _, old -> if (old == null) bonus else old + bonus }
                 streetCount.compute(id) { _, old -> if (old == null) 1 else old + 1 }
             }
+            val firstStreetId = it.get(0)
+            val crossId = idToStreet.get(firstStreetId)!!.to
+            firstCrosses.computeIfAbsent(crossId) { k -> mutableSetOf() }.add(firstStreetId)
         }
         this.onDemandCrosses = cross.filter { (_, streets) ->
             streets.filter { streetCount.containsKey(it.id) }
@@ -54,10 +69,10 @@ data class Data(val D: Int, val F: Int, val streets: List<Street>, val paths: Li
 
 fun main() {
     val tasks = readData()
-    val random = Random()
+    val random = Random(777)
     val scores: MutableMap<Task, Int> = mutableMapOf()
     var count = 0
-    while (true) {
+    while (scores.isEmpty()) {
         for (entry in tasks) {
             val start = System.currentTimeMillis()
             val data = entry.value
@@ -145,7 +160,26 @@ private fun createSchedule(streets: List<Street>,
             }
         }
     }
-    return ScheduleImpl(list.shuffled(random))
+    val shuffled = list.shuffled(random)
+    if (!streets.isEmpty()) {
+        val cross = streets.get(0).to
+        val set = data.firstCrosses.get(cross)
+        if (set != null) {
+            return ScheduleImpl(shuffled.sortedWith { k1, k2 ->
+                if (set.contains(k1.street.id) && set.contains(k2.street.id)) {
+                    0
+                } else if (set.contains(k1.street.id)) {
+                    -1
+                } else if (set.contains(k2.street.id)) {
+                    1
+                } else {
+                    0
+                }
+            })
+        }
+    }
+
+    return ScheduleImpl(shuffled)
 }
 
 private fun readData(): Map<Task, Data> {
@@ -177,7 +211,7 @@ private fun readData(): Map<Task, Data> {
 
         val nameToId = streets.associateBy(keySelector = { it.name }, valueTransform = { it.id })
 
-        val paths: List<List<Int>> = (0 until V).map {
+        val paths: List<List<Int/*street id*/>> = (0 until V).map {
             val P = scanner.nextInt()
             (0 until P).map {
                 nameToId[scanner.next()]!!
@@ -276,7 +310,7 @@ data class Car(val id: Int, val path: List<Street>) {
 
     fun atTheEnd(now: Int): Boolean = (streetIdx == path.lastIndex) && now - t + 1 >= path.last().L
 
-    fun x(now: Int): Int = max(street.L - (now - t ), 0)
+    fun x(now: Int): Int = max(street.L - (now - t), 0)
 }
 
 class Cars(val data: Data, val schedules: Map<Int, Schedule>) {
@@ -296,7 +330,7 @@ class Cars(val data: Data, val schedules: Map<Int, Schedule>) {
             null
         }.groupBy {
             it.street.to
-        }.mapNotNull{ (cross, cars) ->
+        }.mapNotNull { (cross, cars) ->
             val car = schedules[cross]?.getGreenCar(cars, turn)
             if (car != null) {
                 junctions[car.street.id]!!.removeFirst()
