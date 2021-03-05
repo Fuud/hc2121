@@ -24,7 +24,7 @@ enum class Task(val fileName: String, val period: Int) {
         fun toRecord(task: Task): Int {
             return when (task) {
                 A -> 2002
-                B -> 4_567_379
+                B -> 4_567_458
                 C -> 1_302_145
                 D -> 1_617_359
                 E -> 717_618
@@ -167,7 +167,7 @@ private fun createSchedule(streets: List<Street>,
         } else {
             for (street in streets) {
                 val frequency = data.streetWeight[street.id] ?: 0
-                if (frequency > 0 && vw[street]!! > 0.001) {
+                if (frequency > 0 && vw[street]!! > 0.00001) {
                     val time = frequency * localPeriod / sum
                     list.add(StreetAndTime(street, if (time > 0) time else 1))
                 }
@@ -176,7 +176,7 @@ private fun createSchedule(streets: List<Street>,
     } else {
         for (street in streets) {
             val frequency = data.streetWeight[street.id] ?: 0
-            if (frequency > 0 && vw[street]!! > 0.001) {
+            if (frequency > 0 && vw[street]!! > 0.00001) {
                 val time = frequency * localPeriod / sum
                 list.add(StreetAndTime(street, if (time > 0) time else 1))
             }
