@@ -24,11 +24,11 @@ enum class Task(val fileName: String, val period: Int) {
         fun toRecord(task: Task): Int {
             return when (task) {
                 A -> 2002
-                B -> 4568077
-                C -> 1303036
-                D -> 2486916
-                E -> 707994
-                F -> 1393048
+                B -> 4_568_077
+                C -> 1_303_036
+                D -> 2_486_916
+                E -> 707_994
+                F -> 1_393_048
             }
         }
     }
@@ -127,9 +127,10 @@ fun main() {
                 }
                 scores[task] = cars.score
             } else {
-                val diff = ((scores[task] ?: 0) - cars.score)
-                println("$task - $period - ${cars.score}(${cars.score / data.maxScore.toDouble() * 100}%) ${(System.currentTimeMillis() - start) / 1000}s, " +
-                        " count = $count new = $newRecords diff = $diff")
+                val diffStr = String.format("%,d", ((scores[task] ?: 0) - cars.score))
+                val carsScoreStr = String.format("%,d", cars.score)
+                println("$task - $period - ${carsScoreStr} (${cars.score / data.maxScore.toDouble() * 100}%) ${(System.currentTimeMillis() - start) / 1000}s, " +
+                        " count = $count new = $newRecords diff = $diffStr")
             }
         }
         count++
@@ -172,7 +173,7 @@ private fun createSchedule(streets: List<Street>,
         } else {
             for (street in streets) {
                 val frequency = data.streetWeight[street.id] ?: 0
-                if (frequency > 0 && vw[street]!! > 0.001) {
+                if (frequency > 0 && vw[street]!! > 0.00001) {
                     val time = frequency * localPeriod / sum
                     list.add(StreetAndTime(street, if (time > 0) time else 1))
                 }
@@ -181,7 +182,7 @@ private fun createSchedule(streets: List<Street>,
     } else {
         for (street in streets) {
             val frequency = data.streetWeight[street.id] ?: 0
-            if (frequency > 0 && vw[street]!! > 0.001) {
+            if (frequency > 0 && vw[street]!! > 0.00001) {
                 val time = frequency * localPeriod / sum
                 list.add(StreetAndTime(street, if (time > 0) time else 1))
             }
