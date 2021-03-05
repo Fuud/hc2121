@@ -23,12 +23,12 @@ enum class Task(val fileName: String, val period: Int) {
 
         fun toRecord(task: Task): Int {
             return when (task) {
-                A -> 2002;
-                B -> 4567278
-                C -> 1301742
-                D -> 1610074
-                E -> 705944
-                F -> 1392436
+                A -> 2002
+                B -> 4568077
+                C -> 1303036
+                D -> 2486916
+                E -> 707994
+                F -> 1393048
             }
         }
     }
@@ -52,6 +52,8 @@ data class Data(val D: Int, val F: Int, val streets: List<Street>, val paths: Li
     // берём всем маршруты с этой улицей и складываем их веса
     val streetWeight: MutableMap<Int, Int> = mutableMapOf()
 
+    val carsWeight: MutableMap<Int, Int> = mutableMapOf()
+
     // сколько маршрутов проходит через заданную улицу.
     val streetCount: MutableMap<Int, Int> = mutableMapOf()
 
@@ -61,16 +63,20 @@ data class Data(val D: Int, val F: Int, val streets: List<Street>, val paths: Li
     // первые перекрёстки в маршрутах
     val firstCrosses: MutableMap<Int, MutableSet<Int>> = mutableMapOf()
 
+    val firstCars: MutableMap<Int, MutableList<Int>> = mutableMapOf()
+
     init {
         paths.forEachIndexed { i, it ->
             val bonus = (D - lengths[i]!! + F)
+            carsWeight[i] = bonus
             it.forEach { id ->
                 streetWeight.compute(id) { _, old -> if (old == null) bonus else old + bonus }
                 streetCount.compute(id) { _, old -> if (old == null) 1 else old + 1 }
             }
             val firstStreetId = it[0]
             val crossId = idToStreet[firstStreetId]!!.to
-            firstCrosses.computeIfAbsent(crossId) { k -> mutableSetOf() }.add(firstStreetId)
+            firstCrosses.computeIfAbsent(crossId) { mutableSetOf() }.add(firstStreetId)
+            firstCars.computeIfAbsent(firstStreetId) { mutableListOf() }.add(i)
         }
         this.onDemandCrosses = cross.filter { (_, streets) ->
             streets.filter { streetCount.containsKey(it.id) }
@@ -133,7 +139,7 @@ fun main() {
 private fun createSchedule(streets: List<Street>,
                            data: Data,
                            period: Int,
-                           random: Random): ScheduleImpl {
+                           random: Random): Schedule {
     val sum = streets.map { data.streetWeight.getOrDefault(it.id, 0) }.sum()
     val list = mutableListOf<StreetAndTime>()
     val localPeriod = min(sum / (data.F + data.D), period)
@@ -182,38 +188,39 @@ private fun createSchedule(streets: List<Street>,
         }
     }
     val shuffled = list.shuffled(random)
-    if (list.isNotEmpty()) {
-        val cross = streets[0].to
-        val set = data.firstCrosses[cross]
-        if (set != null) {
-            return ScheduleImpl(shuffled.sortedWith { k1, k2 ->
-                if (set.contains(k1.street.id) && set.contains(k2.street.id)) {
-                    compare(data, k1, k2)
-                } else if (set.contains(k1.street.id)) {
-                    -1
-                } else if (set.contains(k2.street.id)) {
-                    1
-                } else {
-                    compare(data, k1, k2)
-                }
-            })
-        }
-    }
+//    if (list.isNotEmpty()) {
+//        val cross = streets[0].to
+//        val set = data.firstCrosses[cross]
+//        if (set != null) {
+//            return ScheduleImpl(shuffled.sortedWith { k1, k2 ->
+//                if (set.contains(k1.street.id) && set.contains(k2.street.id)) {
+//                    compareByFirstCars(data, k1, k2)
+//                } else if (set.contains(k1.street.id)) {
+//                    -1
+//                } else if (set.contains(k2.street.id)) {
+//                    1
+//                } else {
+//                    0
+//                }
+//            })
+//        }
+//    }
 
-    return ScheduleImpl(shuffled)
+    return SortOnDemandSchedule(shuffled, data)
 }
 
-private fun compare(data: Data, k1: StreetAndTime, k2: StreetAndTime): Int {
+private fun compareByStreet(data: Data, k1: StreetAndTime, k2: StreetAndTime): Int {
     val k1Weight: Int = data.streetWeight.get(k1.street.id)!!
     val k2Weight: Int = data.streetWeight.get(k2.street.id)!!
 
-    if (k1Weight > k2Weight) {
-        return -1
-    } else if (k1Weight == k2Weight) {
-        return 0
-    } else {
-        return 1
-    }
+    return k1Weight.compareTo(k2Weight)
+}
+
+private fun compareByFirstCars(data: Data, k1: StreetAndTime, k2: StreetAndTime): Int {
+    val k1Weight = data.firstCars[k1.street.id]?.take(k1.time)?.map { data.carsWeight[it]!! }?.sum() ?: 0
+    val k2Weight = data.firstCars[k2.street.id]?.take(k2.time)?.map { data.carsWeight[it]!! }?.sum() ?: 0
+
+    return k1Weight.compareTo(k2Weight)
 }
 
 private fun readData(): Map<Task, Data> {
@@ -303,6 +310,82 @@ class ScheduleOnDemand(val defaultStreet: Street, val data: Data) : Schedule {
                 turn = tick
             }
         }
+    }
+}
+
+class SortOnDemandSchedule(initial: List<StreetAndTime>, val data: Data) : Schedule {
+    val period = initial.sumBy { it.time }
+    val result: MutableList<StreetAndTime> = initial.toMutableList()
+    val swapByTime: MutableMap<Int, MutableList<StreetAndTime>> = initial.groupByTo(mutableMapOf()) { it.time }
+    val swapByStreet: MutableMap<Street, StreetAndTime> = initial.map { it.street to it }.toMap(mutableMapOf())
+    var timeToInsert = 0
+    var indexToInsert = 0
+
+    override fun getGreenCar(cars: List<Car>, tick: Int): Car? {
+        val reminder = tick % period
+        if (timeToInsert >= 0) {
+            if (reminder < timeToInsert) {
+                val greenStreet = greenStreet(tick)
+                return cars.find { it.street == greenStreet.street }
+            } else {
+                val delta = reminder - timeToInsert
+                val nextCar = cars.filter { swapByStreet[it.street]?.time ?: 0 > delta }
+                        .maxByOrNull { data.streetWeight[it.street.id]!! }
+                if (nextCar != null) {
+                    val streetAndTime = swapByStreet.remove(nextCar.street)!!
+                    result.remove(streetAndTime)
+                    result.add(indexToInsert, streetAndTime)
+                    swapByTime[streetAndTime.time]!!.remove(streetAndTime)
+                    timeToInsert += streetAndTime.time
+                    indexToInsert++
+                    return nextCar
+                }
+                timeToInsert = -1
+            }
+        }
+        val currentGreenStreet = greenStreet(tick)
+        if (swapByStreet.containsKey(currentGreenStreet.street)) {
+            val time = swapByStreet[currentGreenStreet.street]!!.time
+            val candidates = swapByTime[time]!!.map{ it.street to it}.toMap()
+            val nextCar = cars.filter { candidates.containsKey(it.street) }
+                    .maxByOrNull { data.streetWeight[it.street.id]!! }
+            if (nextCar != null) {
+                val streetAndTime = swapByStreet.remove(nextCar.street)!!
+                swapByTime[streetAndTime.time]!!.remove(streetAndTime)
+                val current = result.indexOf(currentGreenStreet)
+                val next = result.indexOf(streetAndTime)
+                if (current != next) {
+                    result[current] = streetAndTime
+                    result[next] = currentGreenStreet
+                }
+                return nextCar
+            }
+            return null
+        } else {
+            return cars.find { it.street == currentGreenStreet.street }
+        }
+    }
+
+    override fun write(writer: PrintWriter) {
+        writer.println(result.size)
+        result.forEach {
+            writer.println("${it.street.name} ${it.time}")
+        }
+    }
+
+    override fun isNotEmpty() = result.isNotEmpty()
+
+
+    fun greenStreet(tick: Int): StreetAndTime {
+        val reminder = tick % period
+        var timeCount = 0
+        for (strTime in result) {
+            timeCount += strTime.time
+            if (timeCount > reminder) {
+                return strTime
+            }
+        }
+        throw IllegalStateException("Should not reach here")
     }
 }
 
