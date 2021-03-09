@@ -7,13 +7,13 @@ import kotlin.math.max
 import kotlin.math.min
 
 
-enum class Task(val fileName: String, val period: Int) {
-    A("a", 2),
-    B("b", 3),
-    C("c", 4),
-    D("d", 2),
-    E("e", 12),
-    F("f", 9);
+enum class Task(val fileName: String, val period: Int, val threshold: Double) {
+    A("a", 2, 0.0),
+    B("b", 4, 0.0),
+    C("c", 4, 0.0),
+    D("d", 2, 0.0),
+    E("e", 6, 0.0027),
+    F("f", 10, 0.0032);
 
     companion object {
         fun toProcess(): List<Task> {
@@ -29,17 +29,17 @@ enum class Task(val fileName: String, val period: Int) {
         fun toRecord(task: Task): Int {
             return when (task) {
                 A -> 2002
-                B -> 4_568_273
-                C -> 1_304_510
-                D -> 2_489_386
-                E -> 717_618
-                F -> 1_395_298
+                B -> 4_568_971
+                C -> 1_307_449
+                D -> 2_499_952
+                E -> 720_450
+                F -> 1_423_671
             }
         }
     }
 }
 
-data class Data(val D: Int, val F: Int, val streets: List<Street>, val paths: List<List<Int>>) {
+data class Data(val D: Int, val F: Int, val streets: List<Street>, val paths: List<List<Int>>, val task: Task) {
     val idToStreet = streets.associateBy { it.id }
 
     // длины всех маршрутов
@@ -66,6 +66,8 @@ data class Data(val D: Int, val F: Int, val streets: List<Street>, val paths: Li
     // все маршруты подходят к этим перекрёсткам с разных улиц. подмножество всех cross-ов.
     val onDemandCrosses: Map<Int, List<Street>>
 
+    val twoWayCrosses: Map<Int, Pair<Street, Street>>
+
     // первые перекрёстки в маршрутах
     val firstCrosses: MutableMap<Int, MutableSet<Int>> = mutableMapOf()
 
@@ -89,19 +91,24 @@ data class Data(val D: Int, val F: Int, val streets: List<Street>, val paths: Li
             streets.filter { streetCount.containsKey(it.id) }
                 .all { (streetCount[it.id]!!) == 1 }
         }
+        this.twoWayCrosses = cross.filterNot { (id, _) -> onDemandCrosses.containsKey(id) }
+                .filter { (_, streets) ->
+                    streets.filter { streetCount.containsKey(it.id) }
+                            .groupBy { streetCount[it.id]!! }.size == 2
+                }.mapValues { it.value[0] to it.value[1] }
     }
 }
 
+val random = Random()
+
 fun main() {
     val tasks = readData()
-    val random = Random()
     val scores: MutableMap<Task, Int> = mutableMapOf()
     tasks.forEach { t, u -> scores[t] = Task.toRecord(t) }
     println("scores = ${scores}")
 
     var count = 0
     var newRecords = 0
-
     while (true) {
         for (entry in tasks) {
             val start = System.currentTimeMillis()
@@ -113,14 +120,13 @@ fun main() {
                 if (data.onDemandCrosses.containsKey(cross)) {
                     return@mapValues ScheduleOnDemand(streets.first(), data)
                 }
-                return@mapValues createSchedule(streets, data, period, random)
+                return@mapValues createSchedule(streets, data, period, task.threshold, random)
             }.filter { it.value.isNotEmpty() }
 
             val cars = Cars(data, schedule)
             for (tick in 0 until data.D) {
                 cars.tick(tick)
             }
-
             if (scores[task] ?: 0 < cars.score) {
                 newRecords++
                 println(" + $task - $period - ${cars.score}(${cars.score / data.maxScore.toDouble() * 100}%) ${(System.currentTimeMillis() - start) / 1000}s")
@@ -151,8 +157,8 @@ private fun createSchedule(
     streets: List<Street>,
     data: Data,
     period: Int,
-    random: Random
-): Schedule {
+    threshold: Double,
+                           random: Random): Schedule {
     val sum = streets.map { data.streetWeight.getOrDefault(it.id, 0) }.sum()
     val list = mutableListOf<StreetAndTime>()
     val localPeriod = min(sum / (data.F + data.D), period)
@@ -194,30 +200,23 @@ private fun createSchedule(
     } else {
         for (street in streets) {
             val frequency = data.streetWeight[street.id] ?: 0
-            if (frequency > 0 && vw[street]!! > 0.00001 && sum!=0) {
+            if (frequency > 0 && vw[street]!! > threshold) {
                 val time = frequency * localPeriod / sum
                 list.add(StreetAndTime(street, if (time > 0) time else 1))
             }
         }
     }
     val shuffled = list.shuffled(random)
-//    if (list.isNotEmpty()) {
-//        val cross = streets[0].to
-//        val set = data.firstCrosses[cross]
-//        if (set != null) {
-//            return ScheduleImpl(shuffled.sortedWith { k1, k2 ->
-//                if (set.contains(k1.street.id) && set.contains(k2.street.id)) {
-//                    compareByFirstCars(data, k1, k2)
-//                } else if (set.contains(k1.street.id)) {
-//                    -1
-//                } else if (set.contains(k2.street.id)) {
-//                    1
-//                } else {
-//                    0
-//                }
-//            })
-//        }
-//    }
+    if (shuffled.size == 2) {
+        val first = shuffled[0]
+        val second = shuffled[1]
+        if (data.streetCount[first.street.id] == 1) {
+            return TwoWaySchedule(data, first.street, second.street)
+        }
+        if (data.streetCount[second.street.id] == 1) {
+            return TwoWaySchedule(data, second.street, first.street)
+        }
+    }
 
     return SortOnDemandSchedule(shuffled, data)
 }
@@ -271,7 +270,7 @@ private fun readData(): Map<Task, Data> {
                 nameToId[scanner.next()]!!
             }
         }
-        val data = Data(D, F, streets, paths)
+        val data = Data(D, F, streets, paths, task)
         val longJourney = data.lengths.filterValues { it > D * 0.8 }.size
         println("$task ${paths.size} cars $D ticks. 0.8=$longJourney, maxScore=${data.maxScore}")
         task to data
@@ -333,7 +332,8 @@ class SortOnDemandSchedule(initial: List<StreetAndTime>, val data: Data) : Sched
     val swapByStreet: MutableMap<Street, StreetAndTime> = initial.map { it.street to it }.toMap(mutableMapOf())
     var timeToInsert = 0
     var indexToInsert = 0
-
+    val randomAtStreet = data.task == Task.E
+    val randomAtCar = data.task != Task.E
     override fun getGreenCar(cars: List<Car>, tick: Int): Car? {
         val reminder = tick % period
         if (timeToInsert >= 0) {
@@ -345,7 +345,8 @@ class SortOnDemandSchedule(initial: List<StreetAndTime>, val data: Data) : Sched
             } else {
                 val delta = reminder - timeToInsert
                 val nextCar = cars.filter { swapByStreet[it.street]?.time ?: 0 > delta }
-                    .maxByOrNull { data.streetWeight[it.street.id]!! + data.streetCount[it.street.id]!! }
+                        .maxByOrNull { data.streetWeight[it.street.id]!! * if (randomAtStreet) (1 + 0.4 * random.nextDouble()) else 1.0 }
+//                        .maxByOrNull { data.streetWeight[it.street.id]!! }
                 if (nextCar != null) {
                     val streetAndTime = swapByStreet.remove(nextCar.street)!!
                     result.remove(streetAndTime)
@@ -364,7 +365,8 @@ class SortOnDemandSchedule(initial: List<StreetAndTime>, val data: Data) : Sched
             val time = swapByStreet[currentGreenStreet.street]!!.time
             val candidates = swapByTime[time]!!.map { it.street to it }.toMap()
             val nextCar = cars.filter { candidates.containsKey(it.street) }
-                .maxByOrNull { data.streetWeight[it.street.id]!! + data.streetCount[it.street.id]!! }
+                .maxByOrNull { data.carsWeight[it.id]!! * if (randomAtCar) (1 + 0.4 * random.nextDouble()) else 1.0 }
+//                    .maxByOrNull { data.carsWeight[it.id]!! + data.streetCount[it.street.id]!! }
             if (nextCar != null) {
                 val streetAndTime = swapByStreet.remove(nextCar.street)!!
                 swapByTime[streetAndTime.time]!!.remove(streetAndTime)
@@ -410,6 +412,37 @@ class SortOnDemandSchedule(initial: List<StreetAndTime>, val data: Data) : Sched
             }
         }
         throw IllegalStateException("Should not reach here")
+    }
+}
+
+class TwoWaySchedule(val data: Data, val oneTime: Street, val manyTime: Street) : Schedule {
+    var firstTick: Int? = null
+    var schedule: Schedule? = null
+
+    override fun getGreenCar(cars: List<Car>, tick: Int): Car? {
+        val theSchedule = schedule
+        if (theSchedule != null) {
+            return theSchedule.getGreenCar(cars, tick)
+        }
+        val oneCar = cars.find { it.street == oneTime }
+        if (oneCar != null) {
+            if (firstTick != null) {
+                schedule = ScheduleImpl(listOf(StreetAndTime(manyTime, tick), StreetAndTime(oneTime, 1)))
+            } else {
+                schedule = ScheduleImpl(listOf(StreetAndTime(oneTime, tick + 1), StreetAndTime(manyTime, data.D - tick - 1)))
+            }
+            return oneCar
+        }
+        return cars.find { it.street == manyTime }
+    }
+
+    override fun isNotEmpty(): Boolean = true
+
+    override fun write(writer: PrintWriter) {
+        if (schedule == null) {
+            schedule = ScheduleImpl(listOf(StreetAndTime(manyTime, 1)))
+        }
+        schedule?.write(writer)
     }
 }
 
