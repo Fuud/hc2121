@@ -29,8 +29,8 @@ enum class Task(val fileName: String, val period: Int, val threshold: Double) {
         fun toRecord(task: Task): Int {
             return when (task) {
                 A -> 2002
-                B -> 4_568_971
-                C -> 1_307_449
+                B -> 4_568_291
+                C -> 1_306_713
                 D -> 2_499_952
                 E -> 720_450
                 F -> 1_423_671
@@ -416,7 +416,7 @@ class SortOnDemandSchedule(initial: List<StreetAndTime>, val data: Data) : Sched
 }
 
 class TwoWaySchedule(val data: Data, val oneTime: Street, val manyTime: Street) : Schedule {
-    var firstTick: Int? = null
+    var previousCar = false
     var schedule: Schedule? = null
 
     override fun getGreenCar(cars: List<Car>, tick: Int): Car? {
@@ -426,21 +426,23 @@ class TwoWaySchedule(val data: Data, val oneTime: Street, val manyTime: Street) 
         }
         val oneCar = cars.find { it.street == oneTime }
         if (oneCar != null) {
-            if (firstTick != null) {
+            if (previousCar) {
                 schedule = ScheduleImpl(listOf(StreetAndTime(manyTime, tick), StreetAndTime(oneTime, 1)))
             } else {
-                schedule = ScheduleImpl(listOf(StreetAndTime(oneTime, tick + 1), StreetAndTime(manyTime, data.D - tick - 1)))
+                schedule = ScheduleImpl(listOf(StreetAndTime(oneTime, tick + 1), StreetAndTime(manyTime, data.D)))
             }
             return oneCar
         }
-        return cars.find { it.street == manyTime }
+        val car = cars.find { it.street == manyTime }
+        previousCar = previousCar || car != null
+        return car
     }
 
     override fun isNotEmpty(): Boolean = true
 
     override fun write(writer: PrintWriter) {
         if (schedule == null) {
-            schedule = ScheduleImpl(listOf(StreetAndTime(manyTime, 1)))
+            schedule = ScheduleImpl(listOf(StreetAndTime(manyTime, data.D)))
         }
         schedule?.write(writer)
     }
