@@ -2,6 +2,7 @@ package hc2021
 
 import java.io.File
 import java.io.PrintWriter
+import java.text.DecimalFormat
 import java.util.*
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.max
@@ -13,8 +14,8 @@ enum class Task(val fileName: String, val period: Int, val threshold: Double, va
     B("b", 4, 0.0, 0.0, 0.4),
     C("c", 4, 0.0, 0.0, 0.4),
     D("d", 2, 0.0, 0.0, 0.4),
-    E("e", 6, 0.0027, 0.5, 0.5),
-    F("f", 10, 0.0032, 0.5, 0.5);
+    E("e", 7, 0.0027, 0.4, 0.4),
+    F("f", 10, 0.0032, 0.0, 0.0);
 
     companion object {
         fun toProcess(): List<Task> {
@@ -23,7 +24,7 @@ enum class Task(val fileName: String, val period: Int, val threshold: Double, va
 //                    C,
 //                    D,
                     E,
-                    F,
+//                    F,
             )
         }
 
@@ -33,8 +34,8 @@ enum class Task(val fileName: String, val period: Int, val threshold: Double, va
                 B -> 4_569_140
                 C -> 1_308_690
                 D -> 2_499_952
-                E -> 720_596
-                F -> 1_425_523
+                E -> 720_620
+                F -> 1_444_576
             }
         }
     }
@@ -60,6 +61,7 @@ data class Data(val D: Int, val F: Int, val streets: List<Street>, val paths: Li
     val spare: MutableMap<Int, Int> = mutableMapOf()
 
     val carsWeight: MutableMap<Int, Int> = mutableMapOf()
+    val carsWeightSpare: MutableMap<Int, Int> = mutableMapOf()
 
     // сколько маршрутов проходит через заданную улицу.
     val streetCount: MutableMap<Int, Int> = mutableMapOf()
@@ -79,6 +81,7 @@ data class Data(val D: Int, val F: Int, val streets: List<Street>, val paths: Li
         paths.forEachIndexed { i, it ->
             val bonus = (D - lengths[i]!! + F)
             carsWeight[i] = bonus
+            carsWeightSpare[i] = bonus
             it.forEach { id ->
                 streetWeight.compute(id) { _, old -> if (old == null) bonus else old + bonus }
                 spare.compute(id) { _, old -> if (old == null) bonus else old + bonus }
@@ -118,8 +121,9 @@ fun main() {
             val data = entry.value
             data.streetWeight.putAll(data.spare)
             data.streetCount.putAll(data.countSpare)
+            data.carsWeight.putAll(data.carsWeightSpare)
             val task = entry.key
-            val period = random.nextInt(3) - 1 + task.period
+            val period = task.period //random.nextInt(3) - 1 + task.period
             val onDemand = AtomicInteger()
             val twoWay = AtomicInteger()
             val twoStreet = AtomicInteger()
@@ -169,12 +173,18 @@ fun main() {
             } else {
                 val diffStr = String.format("%,d", ((scores[task] ?: 0) - cars.score))
                 val carsScoreStr = String.format("%,d", cars.score)
-                println(
-                        "$task - $period - ${carsScoreStr} (${cars.score / data.maxScore.toDouble() * 100}%) ${(System.currentTimeMillis() - start) / 1000}s, " +
-                                " count = $count new = $newRecords diff = $diffStr ")
-//                println(" stat simple = ${simple.get()} onDemand = ${onDemand.get()} twoWay = ${twoWay.get()} twoSize = ${twoStreet.get()} map = $map")
+                val instance = DecimalFormat.getInstance()
+                instance.maximumFractionDigits = 3
+                instance.minimumFractionDigits = 3
+                var message = "$task - $period - ${carsScoreStr}\t" +
+                        "(${instance.format(cars.score / data.maxScore.toDouble() * 100)}%)\t" +
+                        "${cars.finished}/${data.paths.size}\t" +
+                        " ${(System.currentTimeMillis() - start) / 1000}s,\t" +
+                        "count = $count\tnew = $newRecords\tdiff = $diffStr\t"
 
-                println(" ${cars.finished} from ${data.paths.size}")
+//                message += " stat simple = ${simple.get()} onDemand = ${onDemand.get()} twoWay = ${twoWay.get()} twoSize = ${twoStreet.get()} map = $map"
+//                message += " ${cars.finished} from ${data.paths.size}"
+                println(message)
             }
         }
         count++
@@ -239,8 +249,8 @@ private fun createSchedule(
                 val get = map.get(streetAndTime.time) ?: 0
                 map.put(streetAndTime.time, get + 1)
             }
-            println(" st $map")
-            println()
+//            println(" st $map")
+//            println()
         }
     }
     val shuffled = list.shuffled(random)
@@ -255,6 +265,9 @@ private fun createSchedule(
         }
         return ScheduleImpl(shuffled)
     }
+//    if(streets.size <= 10){
+//        return ScheduleImpl(shuffled)
+//    }
 
     return SortOnDemandSchedule(shuffled, data)
 }
@@ -370,8 +383,8 @@ class SortOnDemandSchedule(initial: List<StreetAndTime>, val data: Data) : Sched
     val swapByStreet: MutableMap<Street, StreetAndTime> = initial.map { it.street to it }.toMap(mutableMapOf())
     var timeToInsert = 0
     var indexToInsert = 0
-    val randomAtCar = 1 + data.task.randomAtCar * random.nextDouble()
-    val randomAtStreet = 1 + data.task.randomAtStreet * random.nextDouble()
+//    val randomAtCar = 1 + data.task.randomAtCar * random.nextDouble()
+//    val randomAtStreet = 1 + data.task.randomAtStreet * random.nextDouble()
 
     override fun getGreenCar(cars: List<Car>, tick: Int): Car? {
         val reminder = tick % period
@@ -384,7 +397,10 @@ class SortOnDemandSchedule(initial: List<StreetAndTime>, val data: Data) : Sched
             } else {
                 val delta = reminder - timeToInsert
                 val nextCar = cars.filter { swapByStreet[it.street]?.time ?: 0 > delta }
-                        .maxByOrNull { data.streetWeight[it.street.id]!! * randomAtStreet }
+                        .maxByOrNull {
+                            data.streetWeight[it.street.id]!! * (1 + data.task.randomAtStreet * random.nextDouble()) +
+                                    data.streetCount[it.street.id]!!
+                        }
 //                        .maxByOrNull { data.streetWeight[it.street.id]!! }
                 if (nextCar != null) {
                     val streetAndTime = swapByStreet.remove(nextCar.street)!!
@@ -404,7 +420,7 @@ class SortOnDemandSchedule(initial: List<StreetAndTime>, val data: Data) : Sched
             val time = swapByStreet[currentGreenStreet.street]!!.time
             val candidates = swapByTime[time]!!.map { it.street to it }.toMap()
             val nextCar = cars.filter { candidates.containsKey(it.street) }
-                    .maxByOrNull { data.carsWeight[it.id]!! * randomAtCar }
+                    .maxByOrNull { data.carsWeight[it.id]!! * (1 + data.task.randomAtCar * random.nextDouble()) }
 //                    .maxByOrNull { data.carsWeight[it.id]!! + data.streetCount[it.street.id]!! }
             if (nextCar != null) {
                 val streetAndTime = swapByStreet.remove(nextCar.street)!!
@@ -416,6 +432,7 @@ class SortOnDemandSchedule(initial: List<StreetAndTime>, val data: Data) : Sched
                     result[next] = currentGreenStreet
                 }
                 reduceStreetWeight(nextCar)
+                reduceCarWeight(cars.filter { candidates.containsKey(it.street) && !it.equals(nextCar) }.toList())
                 return nextCar
             }
             return null
@@ -424,6 +441,10 @@ class SortOnDemandSchedule(initial: List<StreetAndTime>, val data: Data) : Sched
             reduceStreetWeight(theCar)
             return theCar
         }
+    }
+
+    private fun reduceCarWeight(candidates: List<Car>) {
+        candidates.forEach { data.carsWeight[it.id] = data.carsWeight[it.id]!! - 1 }
     }
 
     private fun reduceStreetWeight(theCar: Car) {
