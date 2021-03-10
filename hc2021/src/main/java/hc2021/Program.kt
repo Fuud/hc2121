@@ -29,11 +29,11 @@ enum class Task(val fileName: String, val period: Int, val threshold: Double) {
         fun toRecord(task: Task): Int {
             return when (task) {
                 A -> 2002
-                B -> 4_568_291
-                C -> 1_306_713
+                B -> 4_569_140
+                C -> 1_308_690
                 D -> 2_499_952
-                E -> 720_450
-                F -> 1_423_671
+                E -> 720_596
+                F -> 1_425_523
             }
         }
     }
@@ -45,9 +45,9 @@ data class Data(val D: Int, val F: Int, val streets: List<Street>, val paths: Li
     // длины всех маршрутов
     val lengths = paths.mapIndexed { index, list ->
         index to list.stream()
-            .skip(1)
-            .mapToInt { id -> idToStreet[id]?.L ?: 0 }
-            .sum()
+                .skip(1)
+                .mapToInt { id -> idToStreet[id]?.L ?: 0 }
+                .sum()
     }.toMap()
     val cross: Map<Int, List<Street>> = streets.groupBy { it.to }
 
@@ -89,7 +89,7 @@ data class Data(val D: Int, val F: Int, val streets: List<Street>, val paths: Li
         }
         this.onDemandCrosses = cross.filter { (_, streets) ->
             streets.filter { streetCount.containsKey(it.id) }
-                .all { (streetCount[it.id]!!) == 1 }
+                    .all { (streetCount[it.id]!!) == 1 }
         }
         this.twoWayCrosses = cross.filterNot { (id, _) -> onDemandCrosses.containsKey(id) }
                 .filter { (_, streets) ->
@@ -144,8 +144,8 @@ fun main() {
                 val diffStr = String.format("%,d", ((scores[task] ?: 0) - cars.score))
                 val carsScoreStr = String.format("%,d", cars.score)
                 println(
-                    "$task - $period - ${carsScoreStr} (${cars.score / data.maxScore.toDouble() * 100}%) ${(System.currentTimeMillis() - start) / 1000}s, " +
-                            " count = $count new = $newRecords diff = $diffStr"
+                        "$task - $period - ${carsScoreStr} (${cars.score / data.maxScore.toDouble() * 100}%) ${(System.currentTimeMillis() - start) / 1000}s, " +
+                                " count = $count new = $newRecords diff = $diffStr"
                 )
             }
         }
@@ -154,17 +154,17 @@ fun main() {
 }
 
 private fun createSchedule(
-    streets: List<Street>,
-    data: Data,
-    period: Int,
-    threshold: Double,
-                           random: Random): Schedule {
+        streets: List<Street>,
+        data: Data,
+        period: Int,
+        threshold: Double,
+        random: Random): Schedule {
     val sum = streets.map { data.streetWeight.getOrDefault(it.id, 0) }.sum()
     val list = mutableListOf<StreetAndTime>()
     val localPeriod = min(sum / (data.F + data.D), period)
     val vw: Map<Street, Double> = streets.filter { data.streetWeight.containsKey(it.id) }
-        .map { it to data.streetWeight[it.id]!! / sum.toDouble() }
-        .toMap()
+            .map { it to data.streetWeight[it.id]!! / sum.toDouble() }
+            .toMap()
     if (vw.size == 2) {
         val iterator = vw.iterator()
         val first = iterator.next()!!
@@ -191,7 +191,7 @@ private fun createSchedule(
         } else {
             for (street in streets) {
                 val frequency = data.streetWeight[street.id] ?: 0
-                if (frequency > 0 && vw[street]!! > 0.00001 && sum!=0) {
+                if (frequency > 0 && vw[street]!! > 0.00001 && sum != 0) {
                     val time = frequency * localPeriod / sum
                     list.add(StreetAndTime(street, if (time > 0) time else 1))
                 }
@@ -251,14 +251,14 @@ private fun readData(): Map<Task, Data> {
 
         val streets: List<Street> = (0 until S).map {
             Street(
-                id = it,
-                // begin
-                from = scanner.nextInt(),
-                // end
-                to = scanner.nextInt(),
-                name = scanner.next(),
-                // length
-                L = scanner.nextInt()
+                    id = it,
+                    // begin
+                    from = scanner.nextInt(),
+                    // end
+                    to = scanner.nextInt(),
+                    name = scanner.next(),
+                    // length
+                    L = scanner.nextInt()
             )
         }
 
@@ -279,9 +279,9 @@ private fun readData(): Map<Task, Data> {
 }
 
 private fun dumblink(cross: Map<Int, List<Street>>) =
-    cross.mapValues { (_, streets) ->
-        ScheduleImpl(streets.map { StreetAndTime(it, 1) })
-    }
+        cross.mapValues { (_, streets) ->
+            ScheduleImpl(streets.map { StreetAndTime(it, 1) })
+        }
 
 
 data class Street(val id: Int, val from: Int, val to: Int, val name: String, val L: Int)
@@ -365,7 +365,7 @@ class SortOnDemandSchedule(initial: List<StreetAndTime>, val data: Data) : Sched
             val time = swapByStreet[currentGreenStreet.street]!!.time
             val candidates = swapByTime[time]!!.map { it.street to it }.toMap()
             val nextCar = cars.filter { candidates.containsKey(it.street) }
-                .maxByOrNull { data.carsWeight[it.id]!! * if (randomAtCar) (1 + 0.4 * random.nextDouble()) else 1.0 }
+                    .maxByOrNull { data.carsWeight[it.id]!! * if (randomAtCar) (1 + 0.4 * random.nextDouble()) else 1.0 }
 //                    .maxByOrNull { data.carsWeight[it.id]!! + data.streetCount[it.street.id]!! }
             if (nextCar != null) {
                 val streetAndTime = swapByStreet.remove(nextCar.street)!!
