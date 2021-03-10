@@ -34,7 +34,7 @@ enum class Task(val fileName: String, val period: Int, val threshold: Double, va
                 B -> 4_569_140
                 C -> 1_308_690
                 D -> 2_499_952
-                E -> 721_814
+                E -> 722_385
                 F -> 1_444_576
             }
         }
