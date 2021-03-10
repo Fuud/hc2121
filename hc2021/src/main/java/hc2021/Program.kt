@@ -13,7 +13,7 @@ enum class Task(val fileName: String, val period: Int, val threshold: Double, va
     A("a", 2, 0.0, 0.0, 0.4),
     B("b", 4, 0.0, 0.0, 0.4),
     C("c", 4, 0.0, 0.0, 0.4),
-    D("d", 2, 0.0, 0.0, 0.4),
+    D("d", 2, 0.0, 0.5, 0.4),
     E("e", 7, 0.0027, 0.4, 0.4),
     F("f", 10, 0.0032, 0.0, 0.0);
 
@@ -34,7 +34,7 @@ enum class Task(val fileName: String, val period: Int, val threshold: Double, va
                 B -> 4_569_140
                 C -> 1_308_690
                 D -> 2_499_952
-                E -> 720_620
+                E -> 721_814
                 F -> 1_444_576
             }
         }
@@ -123,7 +123,7 @@ fun main() {
             data.streetCount.putAll(data.countSpare)
             data.carsWeight.putAll(data.carsWeightSpare)
             val task = entry.key
-            val period = task.period //random.nextInt(3) - 1 + task.period
+            val period = task.period //+ random.nextInt(3) - 1
             val onDemand = AtomicInteger()
             val twoWay = AtomicInteger()
             val twoStreet = AtomicInteger()
@@ -181,9 +181,9 @@ fun main() {
                         "${cars.finished}/${data.paths.size}\t" +
                         " ${(System.currentTimeMillis() - start) / 1000}s,\t" +
                         "count = $count\tnew = $newRecords\tdiff = $diffStr\t"
-
+//                if(count % 10 == 0)
 //                message += " stat simple = ${simple.get()} onDemand = ${onDemand.get()} twoWay = ${twoWay.get()} twoSize = ${twoStreet.get()} map = $map"
-//                message += " ${cars.finished} from ${data.paths.size}"
+
                 println(message)
             }
         }
@@ -236,22 +236,30 @@ private fun createSchedule(
             }
         }
     } else {
+        var max  = 0
+        for (street in streets) {
+            val frequency = data.streetWeight[street.id] ?: 0
+            if (frequency > max) {
+                max = frequency
+            }
+        }
+        var per = random.nextInt(10)
         for (street in streets) {
             val frequency = data.streetWeight[street.id] ?: 0
             if ((frequency > 0 && vw[street]!! > threshold)) {
-                val time = frequency * localPeriod / sum
+                val time = frequency * per / max
                 list.add(StreetAndTime(street, if (time > 0) time else 1))
             }
         }
-        if (streets.size == 250) {
-            val map = TreeMap<Int, Int>();
-            for (streetAndTime in list) {
-                val get = map.get(streetAndTime.time) ?: 0
-                map.put(streetAndTime.time, get + 1)
-            }
-//            println(" st $map")
-//            println()
-        }
+//        if (streets.size == 250) {
+//            val map = TreeMap<Int, Int>();
+//            for (streetAndTime in list) {
+//                val get = map.get(streetAndTime.time) ?: 0
+//                map.put(streetAndTime.time, get + 1)
+//            }
+////            println(" st $map")
+////            println()
+//        }
     }
     val shuffled = list.shuffled(random)
     if (shuffled.size == 2) {
@@ -263,7 +271,7 @@ private fun createSchedule(
         if (data.streetCount[second.street.id] == 1) {
             return TwoWaySchedule(data, second.street, first.street)
         }
-        return ScheduleImpl(shuffled)
+//        return ScheduleImpl(shuffled)
     }
 //    if(streets.size <= 10){
 //        return ScheduleImpl(shuffled)
