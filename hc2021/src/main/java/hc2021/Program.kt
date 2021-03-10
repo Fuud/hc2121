@@ -117,6 +117,7 @@ fun main() {
             val task = entry.key
             val period = random.nextInt(3) - 1 + task.period
             val schedule: Map<Int, Schedule> = data.cross.mapValues { (cross, streets) ->
+                // каждая дорога с одним маршрутом, по запросу включаем светофор.
                 if (data.onDemandCrosses.containsKey(cross)) {
                     return@mapValues ScheduleOnDemand(streets.first(), data)
                 }
