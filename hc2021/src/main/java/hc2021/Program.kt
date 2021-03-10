@@ -3,6 +3,7 @@ package hc2021
 import java.io.File
 import java.io.PrintWriter
 import java.util.*
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.max
 import kotlin.math.min
 
@@ -116,10 +117,24 @@ fun main() {
             data.streetWeight.putAll(data.spare)
             val task = entry.key
             val period = random.nextInt(3) - 1 + task.period
+            val onDemand = AtomicInteger()
+            val twoWay = AtomicInteger()
+            val simple = AtomicInteger()
+            val map = TreeMap<Int, Int>()
+
             val schedule: Map<Int, Schedule> = data.cross.mapValues { (cross, streets) ->
+//                map.merge(streets.size, 1) { x, v -> v + 1 }
+                val get: Int = map.get(streets.size) ?: 0
+                map.put(streets.size, get + 1)
                 // каждая дорога с одним маршрутом, по запросу включаем светофор.
                 if (data.onDemandCrosses.containsKey(cross)) {
+                    onDemand.incrementAndGet()
                     return@mapValues ScheduleOnDemand(streets.first(), data)
+                }
+                if (streets.size == 2) {
+                    twoWay.incrementAndGet()
+                } else {
+                    simple.incrementAndGet()
                 }
                 return@mapValues createSchedule(streets, data, period, task.threshold, random)
             }.filter { it.value.isNotEmpty() }
@@ -146,7 +161,7 @@ fun main() {
                 val carsScoreStr = String.format("%,d", cars.score)
                 println(
                         "$task - $period - ${carsScoreStr} (${cars.score / data.maxScore.toDouble() * 100}%) ${(System.currentTimeMillis() - start) / 1000}s, " +
-                                " count = $count new = $newRecords diff = $diffStr"
+                                " count = $count new = $newRecords diff = $diffStr simple = ${simple.get()} onDemand = ${onDemand.get()} twoWay = ${twoWay.get()} map = $map"
                 )
             }
         }
