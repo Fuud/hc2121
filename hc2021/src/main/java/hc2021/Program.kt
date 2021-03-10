@@ -191,7 +191,7 @@ private fun createSchedule(
         } else {
             for (street in streets) {
                 val frequency = data.streetWeight[street.id] ?: 0
-                if (frequency > 0 && vw[street]!! > 0.00001 && sum != 0) {
+                if (frequency > 0 && sum != 0) {
                     val time = frequency * localPeriod / sum
                     list.add(StreetAndTime(street, if (time > 0) time else 1))
                 }
