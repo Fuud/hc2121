@@ -29,11 +29,11 @@ enum class Task(val fileName: String, val period: Int, val threshold: Double) {
         fun toRecord(task: Task): Int {
             return when (task) {
                 A -> 2002
-                B -> 4_569_140
+                B -> 4_569_151
                 C -> 1_308_690
                 D -> 2_499_952
-                E -> 720_596
-                F -> 1_425_523
+                E -> 722_515
+                F -> 1_446_515
             }
         }
     }
