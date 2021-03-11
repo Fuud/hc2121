@@ -22,7 +22,7 @@ enum class Task(val fileName: String, val period: Int, val threshold: Double, va
             return listOf(
                     B,
                     C,
-//                    D,
+                    D,
                     E,
                     F,
             )
