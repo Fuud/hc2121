@@ -11,18 +11,18 @@ import kotlin.math.min
 
 enum class Task(val fileName: String, val period: Int, val threshold: Double, val randomAtStreet: Double, val randomAtCar: Double) {
     A("a", 2, 0.0, 0.0, 0.4),
-    B("b", 4, 0.0, 0.0, 0.4),
-    C("c", 4, 0.0, 0.0, 0.4),
-    D("d", 2, 0.0, 0.5, 0.4),
+    B("b", 4, 0.001, 0.4, 0.4),
+    C("c", 4, 0.001, 0.4, 0.4),
+    D("d", 2, 0.0, 0.4, 0.4),
     E("e", 7, 0.0027, 0.4, 0.4),
-    F("f", 10, 0.0032, 0.0, 0.0);
+    F("f", 10, 0.0032, 0.4, 0.4);
 
     companion object {
         fun toProcess(): List<Task> {
             return listOf(
                     B,
                     C,
-                    D,
+//                    D,
                     E,
                     F,
             )
